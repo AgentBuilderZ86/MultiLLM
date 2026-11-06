@@ -130,6 +130,17 @@
     </div>
   </dialog>
 
+  <!-- Connexion -->
+  <dialog id="loginDialog" class="dialog">
+    <form id="loginForm" class="dialog-body model-form" method="dialog">
+      <h3>🔒 Accès protégé</h3>
+      <p class="muted" style="margin:0">Saisissez le mot de passe de cette instance MultiLLM.</p>
+      <label>Mot de passe<input name="password" type="password" autocomplete="current-password" required></label>
+      <p class="form-error" id="loginError"></p>
+      <div class="form-actions"><button type="submit" class="btn primary">Se connecter</button></div>
+    </form>
+  </dialog>
+
   <div id="toasts" class="toasts" aria-live="polite"></div>
 
   <script src="markdown.js"></script>

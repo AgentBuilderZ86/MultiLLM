@@ -62,11 +62,28 @@ Vous pouvez ajouter **plusieurs fois le même fournisseur** avec des modèles ou
 - Pour ne rien stocker sur disque, saisissez `env:NOM_VARIABLE` comme clé (ex. `env:OPENAI_API_KEY`) et définissez la variable dans `.env` (voir `.env.example`).
 - Le serveur écoute par défaut sur `127.0.0.1` uniquement. Pour l'exposer sur le réseau, définissez `HOST=0.0.0.0` **et** `MULTILLM_PASSWORD`.
 
+## Déploiement sur Netlify
+
+Le dépôt est prêt pour Netlify (`netlify.toml`) :
+
+- l'interface (`public/`) est servie en statique ;
+- l'API est une fonction Netlify (`netlify/functions/api.mjs`, route `/api/*`) qui renvoie les réponses en streaming ;
+- les modèles, clés et l'historique sont stockés dans **Netlify Blobs** (store `multillm`).
+
+**Variable obligatoire** : `MULTILLM_PASSWORD` (Project configuration → Environment variables, portée *Functions*). Sans elle, l'API refuse de fonctionner, pour éviter que n'importe qui utilise vos clés. L'interface demande ce mot de passe à la première visite.
+
+Variables facultatives : vos clés API (ex. `OPENAI_API_KEY`), à référencer dans l'interface avec `env:OPENAI_API_KEY`.
+
+Limite à connaître : une fonction Netlify en streaming s'arrête après **60 secondes**. Pour des réponses très longues (modèles qui réfléchissent longtemps), réduisez les tokens max ou l'effort, ou utilisez la version locale.
+
 ## Architecture
 
 ```
-server.js            serveur HTTP (aucun framework), API REST + streaming NDJSON
-lib/store.js         persistance JSON (modèles, historique)
+server.js            serveur local (aucun framework) : fichiers statiques + API
+lib/api.js           API REST + streaming NDJSON (Request → Response), partagée local / Netlify
+lib/store.js         modèles et historique
+lib/backend.js       stockage : fichiers JSON en local, Netlify Blobs en ligne
+netlify/functions/   fonction Netlify qui expose lib/api.js
 lib/sse.js           lecture des flux Server-Sent Events
 providers/
   openai.js          API compatibles OpenAI (Chat Completions)

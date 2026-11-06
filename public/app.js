@@ -30,8 +30,51 @@ const store = {
   },
 };
 
+// ---------- authentification ----------
+// Le mot de passe (MULTILLM_PASSWORD côté serveur) est gardé dans le navigateur et envoyé à chaque appel.
+let loginPromise = null;
+function askPassword(message) {
+  loginPromise ||= new Promise((resolve) => {
+    const dialog = $("#loginDialog");
+    const form = $("#loginForm");
+    $("#loginError").textContent = message || "";
+    form.password.value = "";
+    form.onsubmit = (e) => {
+      e.preventDefault();
+      store.set("multillm.password", form.password.value);
+      dialog.close();
+      loginPromise = null;
+      resolve();
+    };
+    dialog.addEventListener("cancel", (e) => e.preventDefault(), { once: true });
+    dialog.showModal();
+    form.password.focus();
+  });
+  return loginPromise;
+}
+
+async function apiFetch(path, init = {}) {
+  for (let attempt = 0; ; attempt++) {
+    const password = store.get("multillm.password", "");
+    const res = await fetch(path, {
+      ...init,
+      headers: { ...(init.headers || {}), ...(password ? { "X-MultiLLM-Password": password } : {}) },
+    });
+    if (res.status === 401 && attempt < 5) {
+      const data = await res.clone().json().catch(() => ({}));
+      await askPassword(password ? data.error : "");
+      continue;
+    }
+    if (res.status === 503) {
+      const data = await res.clone().json().catch(() => ({}));
+      if (data.code === "no_password") toast(data.error, "error");
+    }
+    return res;
+  }
+}
+
 async function api(path, options = {}) {
-  const res = await fetch(path, {
+  const res = await apiFetch(path, {
     ...options,
     headers: { "Content-Type": "application/json", ...(options.headers || {}) },
     body: options.body && typeof options.body !== "string" ? JSON.stringify(options.body) : options.body,
@@ -179,7 +222,7 @@ async function runModel(turnIdx, modelId) {
 
   const started = performance.now();
   try {
-    const res = await fetch("/api/chat", {
+    const res = await apiFetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ modelId, system: state.conv.system, messages: historyFor(modelId, turnIdx) }),
@@ -592,7 +635,7 @@ async function move(i, delta) {
 async function testModel(m) {
   toast(`Test de « ${m.label} »…`);
   try {
-    const res = await fetch("/api/chat", {
+    const res = await apiFetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ modelId: m.id, messages: [{ role: "user", content: "Réponds uniquement par : OK" }] }),

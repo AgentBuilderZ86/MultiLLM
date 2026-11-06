@@ -1,0 +1,8 @@
+# Déploiement Netlify : l'interface est statique (public/),
+# l'API est une fonction (netlify/functions/api.mjs) qui stocke ses données dans Netlify Blobs.
+[build]
+  publish = "public"
+  functions = "netlify/functions"
+
+[functions]
+  node_bundler = "esbuild"
