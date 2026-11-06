@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MultiLLM</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%234f46e5'/><rect x='6' y='9' width='6' height='14' rx='2' fill='white'/><rect x='13' y='6' width='6' height='20' rx='2' fill='white' opacity='.8'/><rect x='20' y='11' width='6' height='10' rx='2' fill='white' opacity='.6'/></svg>">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo" aria-hidden="true"><i></i><i></i><i></i></span>
+      <span>MultiLLM</span>
+      <span class="conv-title" id="convTitle"></span>
+    </div>
+    <nav class="actions">
+      <button class="btn ghost" id="newConvBtn" title="Nouvelle conversation">＋ Nouvelle</button>
+      <button class="btn ghost" id="exportBtn" title="Exporter en Markdown">⇩ Exporter</button>
+      <button class="btn ghost" id="historyBtn">🕘 Historique</button>
+      <button class="btn" id="modelsBtn">⚙ Modèles</button>
+      <button class="btn ghost icon" id="themeBtn" title="Thème clair / sombre">🌓</button>
+    </nav>
+  </header>
+
+  <main id="thread" class="thread">
+    <section class="empty" id="emptyState">
+      <h1>Comparez plusieurs LLM sur le même prompt</h1>
+      <p>Choisissez les modèles ci-dessous, écrivez votre prompt et envoyez : chaque modèle est interrogé <strong>en parallèle</strong>, et les réponses s'affichent côte à côte avec leur latence et leur consommation de tokens.</p>
+      <p class="muted">Ajoutez vos clés API dans <strong>⚙ Modèles</strong>. Deux modèles « démo » sont fournis pour tester l'interface sans clé.</p>
+    </section>
+  </main>
+
+  <footer class="composer">
+    <div class="model-picker" id="modelPicker"></div>
+    <details class="system" id="systemBox">
+      <summary>Consigne système <span class="muted" id="systemHint"></span></summary>
+      <textarea id="systemInput" rows="2" placeholder="Ex. : Tu es un expert juridique. Réponds en français, de façon concise."></textarea>
+    </details>
+    <div class="prompt-row">
+      <textarea id="promptInput" rows="3" placeholder="Votre prompt… (Ctrl+Entrée pour envoyer)"></textarea>
+      <div class="prompt-buttons">
+        <button class="btn primary" id="sendBtn">Envoyer</button>
+        <button class="btn danger" id="stopBtn" hidden>Arrêter</button>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Gestion des modèles -->
+  <dialog id="modelsDialog" class="dialog wide">
+    <div class="dialog-head">
+      <h2>Modèles configurés</h2>
+      <button class="btn ghost icon" data-close>✕</button>
+    </div>
+    <div class="dialog-body models-layout">
+      <div>
+        <ul id="modelList" class="model-list"></ul>
+        <button class="btn" id="addModelBtn">＋ Ajouter un modèle</button>
+      </div>
+      <form id="modelForm" class="model-form" autocomplete="off" hidden>
+        <h3 id="formTitle">Nouveau modèle</h3>
+        <label>Modèle prédéfini
+          <select id="presetSelect"></select>
+        </label>
+        <div class="grid2">
+          <label>Nom affiché<input name="label" required placeholder="Ex. Claude Opus"></label>
+          <label>Type d'API
+            <select name="type">
+              <option value="openai">Compatible OpenAI</option>
+              <option value="anthropic">Anthropic (Claude)</option>
+              <option value="gemini">Google Gemini</option>
+              <option value="demo">Démo (sans réseau)</option>
+            </select>
+          </label>
+        </div>
+        <label data-for="openai anthropic gemini">URL de base<input name="baseUrl" placeholder="https://api.openai.com/v1"></label>
+        <label data-for="openai anthropic gemini">Clé API
+          <input name="apiKey" type="password" placeholder="sk-… ou env:NOM_VARIABLE">
+          <small class="muted" id="apiKeyHint"></small>
+        </label>
+        <div class="grid2">
+          <label>Identifiant du modèle<input name="model" placeholder="Ex. gpt-5"></label>
+          <label>Couleur<input name="color" type="color" value="#6366f1"></label>
+        </div>
+        <div class="grid2">
+          <label data-for="openai gemini">Température<input name="temperature" type="number" step="0.1" min="0" max="2" placeholder="défaut"></label>
+          <label>Tokens max en sortie<input name="maxTokens" type="number" min="1" placeholder="défaut"></label>
+        </div>
+        <div class="grid2">
+          <label data-for="anthropic gemini">Réflexion (thinking)
+            <select name="thinking">
+              <option value="">Par défaut du modèle</option>
+              <option value="adaptive" data-for="anthropic">Adaptative (masquée)</option>
+              <option value="summarized">Afficher un résumé</option>
+            </select>
+          </label>
+          <label data-for="anthropic openai">Effort
+            <select name="effort">
+              <option value="">Par défaut</option>
+              <option value="low">low</option>
+              <option value="medium">medium</option>
+              <option value="high">high</option>
+              <option value="xhigh">xhigh</option>
+              <option value="max">max</option>
+            </select>
+          </label>
+        </div>
+        <label class="check" data-for="anthropic"><input type="checkbox" name="fallbacks" checked> Repli automatique si le modèle refuse (Claude Fable 5.1 / Opus 5.5 / Opus 5 / Sonnet 5.5)</label>
+        <label>Paramètres supplémentaires (JSON, fusionnés dans la requête)
+          <textarea name="extraParams" rows="2" placeholder='{"top_p": 0.9}'></textarea>
+        </label>
+        <label class="check"><input type="checkbox" name="enabled" checked> Activé</label>
+        <p class="form-error" id="formError"></p>
+        <div class="form-actions">
+          <button type="button" class="btn ghost" id="cancelFormBtn">Annuler</button>
+          <button type="submit" class="btn primary">Enregistrer</button>
+        </div>
+      </form>
+    </div>
+  </dialog>
+
+  <!-- Historique -->
+  <dialog id="historyDialog" class="dialog">
+    <div class="dialog-head">
+      <h2>Historique</h2>
+      <button class="btn ghost icon" data-close>✕</button>
+    </div>
+    <div class="dialog-body">
+      <ul id="historyList" class="history-list"></ul>
+    </div>
+  </dialog>
+
+  <div id="toasts" class="toasts" aria-live="polite"></div>
+
+  <script src="markdown.js"></script>
+  <script src="app.js" type="module"></script>
+</body>
+</html>
